@@ -138,7 +138,8 @@ export function clearStoredTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-const BASE_URL = "/api/v1";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
+const BASE_URL = `${API_BASE}/api/v1`;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
@@ -328,7 +329,7 @@ export const api = {
     },
 
     getDownloadUrl(datasetId: string): string {
-      return `/api/v1/datasets/${datasetId}/download`;
+      return `${BASE_URL}/datasets/${datasetId}/download`;
     },
   },
 
