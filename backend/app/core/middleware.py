@@ -20,11 +20,11 @@ def register_middlewares(app: FastAPI) -> None:
     )
 
     # 2. Trusted Host Middleware
-    # Restrict hosts in production to prevent HTTP Host Header attacks
+    # Allow cloud hosts (Render, custom domains) in production
     if settings.ENVIRONMENT == "production":
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=[settings.HOST, "localhost", "127.0.0.1"],
+            allowed_hosts=["*"],
         )
 
     # 3. Gzip Compression Middleware
