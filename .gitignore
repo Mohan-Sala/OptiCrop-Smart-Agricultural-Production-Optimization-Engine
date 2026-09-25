@@ -1,0 +1,59 @@
+# Environment & Secrets (Crucial: never commit credentials)
+.env
+.env.*
+!.env.example
+*.local
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+build/
+dist/
+*.egg-info/
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Test and type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.output/
+frontend/.vinxi/
+frontend/.tanstack/
+frontend/.nitro/
+
+# Logs and databases
+*.log
+logs/
+backend/logs/
+backend/tmp/
+tmp/
+*.sqlite3
+*.db
+backend/storage/temp/
+
+# Binaries
+*.exe
+*.dll
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
