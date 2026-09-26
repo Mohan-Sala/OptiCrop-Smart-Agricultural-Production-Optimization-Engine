@@ -34,8 +34,12 @@ FEATURE_LABELS = {
 }
 
 CANDIDATE_CSV_PATHS = [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "crop_recommendation.csv"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "crop_recommendation.csv"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "crop_recommendation.csv"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "crop_data.csv"),
+    "crop_recommendation.csv",
+    "crop_data.csv",
     "D:/opticrop-ai-main/crop_recommendation.csv",
     "D:/opticrop-ai-main/crop_data.csv",
 ]
@@ -302,14 +306,20 @@ async def ensure_default_crop_model(project_id: uuid.UUID, user_id: uuid.UUID) -
       - If datasets have EVER existed in the project (i.e. user deleted them), raises ValidationException without resurrecting deleted datasets.
       - If 0 datasets ever existed (first-time fresh project), bootstraps the seed dataset.
     """
-    # 1. Fetch active (non-deleted) datasets for this project
+    # 1. Fetch active, valid (non-deleted, successfully processed) datasets for this project
+    from app.core.enums import DatasetStatus
     active_datasets = await Dataset.find(
         Dataset.project_id == project_id,
         Dataset.is_deleted == False,
     ).sort("-uploaded_at").to_list()
 
-    if active_datasets:
-        dataset_ids = [d.id for d in active_datasets]
+    valid_datasets = [
+        d for d in active_datasets
+        if d.status in [DatasetStatus.VALIDATED, DatasetStatus.READY_FOR_TRAINING]
+    ]
+
+    if valid_datasets:
+        dataset_ids = [d.id for d in valid_datasets]
         sessions = await TrainingSession.find({"dataset_id": {"$in": dataset_ids}}).to_list()
         session_ids = [s.id for s in sessions]
         if session_ids:
@@ -319,7 +329,7 @@ async def ensure_default_crop_model(project_id: uuid.UUID, user_id: uuid.UUID) -
             })
             if active_model:
                 session_map = {s.id: s for s in sessions}
-                dataset_map = {d.id: d for d in active_datasets}
+                dataset_map = {d.id: d for d in valid_datasets}
                 sess = session_map.get(active_model.training_session_id)
                 if sess:
                     sess.dataset = dataset_map.get(sess.dataset_id)
@@ -327,18 +337,16 @@ async def ensure_default_crop_model(project_id: uuid.UUID, user_id: uuid.UUID) -
                 await ensure_model_insights_populated(active_model)
                 return active_model
 
-        # No active model on existing active datasets -> Train on the latest active dataset!
-        latest_dataset = active_datasets[0]
-        logger.info("No active model found. Training and activating on latest active dataset %s (%s)...", latest_dataset.id, latest_dataset.original_filename)
-        return await train_and_activate_crop_model(latest_dataset, user_id)
+        # No active model on existing valid datasets -> Train on the latest valid dataset!
+        for cand_dataset in valid_datasets:
+            try:
+                logger.info("Training and activating crop model on valid dataset %s (%s)...", cand_dataset.id, cand_dataset.original_filename)
+                return await train_and_activate_crop_model(cand_dataset, user_id)
+            except Exception as train_err:
+                logger.warning("Could not train on dataset %s (%s): %s", cand_dataset.id, cand_dataset.name, train_err)
 
-    # 2. No active datasets. Check if any datasets ever existed in this project (including deleted ones)
-    all_datasets_count = await Dataset.find(Dataset.project_id == project_id).count()
-    if all_datasets_count > 0:
-        from app.utils.exceptions import ValidationException
-        raise ValidationException("No active dataset found in your project. Please upload an agricultural CSV dataset to run predictions.")
-
-    # 3. Only if 0 datasets have ever existed (initial first run), bootstrap initial seed dataset
+    # 2. No valid active datasets or training failed -> bootstrap initial/fallback seed dataset
+    logger.info("Bootstrapping default model for project %s...", project_id)
     return await _bootstrap_crop_model(project_id, user_id)
 
 
@@ -506,10 +514,14 @@ async def get_or_create_model_insights(user_id: uuid.UUID, project_id: Optional[
             session = await TrainingSession.get(model.training_session_id)
             dataset = await Dataset.get(session.dataset_id) if session else None
             if dataset and dataset.storage_path:
-                from app.services.dataset.storage import StorageService
-                storage = StorageService()
-                csv_bytes = await storage.download_bytes(dataset.storage_path)
-                target_df = pd.read_csv(io.BytesIO(csv_bytes))
+                try:
+                    from app.services.dataset.storage import StorageService
+                    storage = StorageService()
+                    csv_bytes = await storage.download_bytes(dataset.storage_path)
+                    target_df = pd.read_csv(io.BytesIO(csv_bytes))
+                except Exception as dl_err:
+                    logger.warning("Could not download dataset %s: %s", dataset.storage_path, dl_err)
+                    target_df = None
             if target_df is None:
                 csv_path = find_crop_csv_path()
                 if csv_path:

@@ -43,9 +43,9 @@ def get_dataset_service(
     preview_service: PreviewService = Depends(get_preview_service),
 ) -> DatasetService:
     return DatasetService(
-        dataset_repo=dataset_repo,
-        validation_service=validation_service,
-        storage_service=storage_service,
-        metadata_service=metadata_service,
-        preview_service=preview_service,
+        dataset_repo=dataset_repo if type(dataset_repo).__name__ != "Depends" else get_dataset_repository(),
+        validation_service=validation_service if type(validation_service).__name__ != "Depends" else get_validation_service(),
+        storage_service=storage_service if type(storage_service).__name__ != "Depends" else get_storage_service(),
+        metadata_service=metadata_service if type(metadata_service).__name__ != "Depends" else get_metadata_service(),
+        preview_service=preview_service if type(preview_service).__name__ != "Depends" else get_preview_service(),
     )

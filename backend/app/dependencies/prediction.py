@@ -66,13 +66,15 @@ def get_prediction_export_service() -> PredictionExportService:
 def get_prediction_history_service(
     repo: PredictionHistoryRepository = Depends(get_prediction_history_repository)
 ) -> PredictionHistoryService:
-    return PredictionHistoryService(repo)
+    effective_repo = repo if type(repo).__name__ != "Depends" else get_prediction_history_repository()
+    return PredictionHistoryService(effective_repo)
 
 
 def get_prediction_serialization_service(
     storage_service: StorageService = Depends(get_storage_service)
 ) -> PredictionSerializationService:
-    return PredictionSerializationService(storage_service)
+    effective_storage = storage_service if type(storage_service).__name__ != "Depends" else get_storage_service()
+    return PredictionSerializationService(effective_storage)
 
 
 def get_prediction_pipeline(
@@ -87,13 +89,13 @@ def get_prediction_pipeline(
     warm_model_cache: WarmModelCache = Depends(get_warm_model_cache),
 ) -> PredictionPipeline:
     return PredictionPipeline(
-        prediction_repo=prediction_repo,
-        trained_model_repo=trained_model_repo,
-        dataset_repo=dataset_repo,
-        validation_service=validation_service,
-        preprocessing_service=preprocessing_service,
-        inference_service=inference_service,
-        serialization_service=serialization_service,
-        prediction_cache=prediction_cache,
-        warm_model_cache=warm_model_cache,
+        prediction_repo=prediction_repo if type(prediction_repo).__name__ != "Depends" else get_prediction_repository(),
+        trained_model_repo=trained_model_repo if type(trained_model_repo).__name__ != "Depends" else get_trained_model_repository(),
+        dataset_repo=dataset_repo if type(dataset_repo).__name__ != "Depends" else get_dataset_repository(),
+        validation_service=validation_service if type(validation_service).__name__ != "Depends" else get_prediction_validation_service(),
+        preprocessing_service=preprocessing_service if type(preprocessing_service).__name__ != "Depends" else get_prediction_preprocessing_service(),
+        inference_service=inference_service if type(inference_service).__name__ != "Depends" else get_inference_service(),
+        serialization_service=serialization_service if type(serialization_service).__name__ != "Depends" else get_prediction_serialization_service(),
+        prediction_cache=prediction_cache if type(prediction_cache).__name__ != "Depends" else get_prediction_cache(),
+        warm_model_cache=warm_model_cache if type(warm_model_cache).__name__ != "Depends" else get_warm_model_cache(),
     )
