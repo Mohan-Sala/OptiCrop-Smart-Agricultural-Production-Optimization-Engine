@@ -65,4 +65,16 @@ def register_middlewares(app: FastAPI) -> None:
                 str(e),
                 process_time * 1000,
             )
-            raise e
+            origin = request.headers.get("origin", "*")
+            from app.utils.responses import error_response
+            resp = error_response(
+                message="An unexpected server error occurred.",
+                errors=[str(e)],
+                status_code=500
+            )
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Allow-Methods"] = "*"
+            resp.headers["Access-Control-Allow-Headers"] = "*"
+            return resp
+

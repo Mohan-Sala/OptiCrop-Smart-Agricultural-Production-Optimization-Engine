@@ -1,4 +1,5 @@
 import hashlib
+import io
 import os
 import uuid
 import logging
@@ -18,33 +19,36 @@ class PredictionSerializationService:
         self.storage_service = storage_service
 
     async def download_and_verify(self, storage_path: str, expected_checksum: str) -> Any:
-        temp_name = f"verify_{uuid.uuid4().hex}.joblib"
-        temp_path = os.path.join(settings.UPLOAD_PATH, temp_name)
-        
-        try:
-            content = await self.storage_service.download_file(storage_path)
-            with open(temp_path, "wb") as f:
-                f.write(content)
-                
-            sha256 = hashlib.sha256()
-            with open(temp_path, "rb") as f:
-                while chunk := f.read(8192):
-                    sha256.update(chunk)
-            checksum = sha256.hexdigest()
-            
+        content = await self.storage_service.download_file(storage_path)
+
+        # Verify SHA-256 checksum if provided and not placeholder
+        if expected_checksum and expected_checksum != "no_checksum":
+            checksum = hashlib.sha256(content).hexdigest()
             if checksum != expected_checksum:
                 logger.error(
                     "Integrity verification failed for path %s. Expected: %s, Computed: %s",
                     storage_path, expected_checksum, checksum
                 )
                 raise ValidationException("Artifact checksum mismatch: potential corruption detected.")
-                
-            loaded_obj = joblib.load(temp_path)
-            return loaded_obj
-            
-        finally:
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
+
+        # Try in-memory deserialization directly to avoid file system dependencies
+        try:
+            return joblib.load(io.BytesIO(content))
+        except Exception as in_mem_err:
+            logger.warning("In-memory joblib.load failed (%s), attempting filesystem fallback...", in_mem_err)
+            os.makedirs(settings.UPLOAD_PATH, exist_ok=True)
+            temp_name = f"verify_{uuid.uuid4().hex}.joblib"
+            temp_path = os.path.join(settings.UPLOAD_PATH, temp_name)
+
+            try:
+                with open(temp_path, "wb") as f:
+                    f.write(content)
+                loaded_obj = joblib.load(temp_path)
+                return loaded_obj
+            finally:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+

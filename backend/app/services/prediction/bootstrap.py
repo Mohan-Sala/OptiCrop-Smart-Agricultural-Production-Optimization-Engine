@@ -34,6 +34,7 @@ FEATURE_LABELS = {
 }
 
 CANDIDATE_CSV_PATHS = [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "crop_recommendation.csv"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "crop_recommendation.csv"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "crop_recommendation.csv"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "crop_recommendation.csv"),

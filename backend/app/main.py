@@ -22,12 +22,18 @@ async def lifespan(app: FastAPI):
     # Initialize logging first
     setup_logging()
     logger.info("Initializing OptiCrop AI Backend Services...")
+    import os
+    os.makedirs(settings.UPLOAD_PATH, exist_ok=True)
+    os.makedirs(settings.MODEL_PATH, exist_ok=True)
+    os.makedirs("tmp", exist_ok=True)
+    os.makedirs("tmp/uploads", exist_ok=True)
     try:
         await init_db()
     except Exception as e:
         logger.error("MongoDB Atlas initialization failed: %s", str(e))
         raise
     yield
+
     logger.info("Shutting down OptiCrop AI Backend Services...")
     try:
         await close_db()
@@ -90,10 +96,18 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 async def generic_exception_handler(request: Request, exc: Exception):
     """Fallback handler for any unhandled unexpected exceptions."""
     logger.exception("Unhandled Exception: %s", str(exc))
-    return error_response(
+    origin = request.headers.get("origin", "*")
+    resp = error_response(
         message="An unexpected server error occurred.",
+        errors=[str(exc)],
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
+    resp.headers["Access-Control-Allow-Origin"] = origin
+    resp.headers["Access-Control-Allow-Credentials"] = "true"
+    resp.headers["Access-Control-Allow-Methods"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "*"
+    return resp
+
 
 
 # --- Root Enpoint ---
